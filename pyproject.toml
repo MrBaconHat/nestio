@@ -16,12 +16,15 @@ authors = [
 ]
 
 dependencies = [
-    "aiofiles>=23.0.0"
+    "aiofiles>=23.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "tomli-w>=1.0.0"
 ]
 
 keywords = [
     "async",
     "json",
+    "toml",
     "storage",
     "database",
     "nest",
