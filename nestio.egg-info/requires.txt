@@ -1,6 +1,0 @@
-aiofiles>=23.0.0
-tomli-w>=1.0.0
-toons>=0.7.0
-
-[:python_version < "3.11"]
-tomli>=2.0.0
