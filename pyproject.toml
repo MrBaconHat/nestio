@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "nestio"
+version = "0.1.0"
+description = "Async-first nested JSON/TOML storage with dot-path access and atomic writes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+authors = [
+    {name = "MrBaconHat"}
+]
+
+dependencies = [
+    "aiofiles>=23.0.0"
+]
+
+keywords = [
+    "async",
+    "json",
+    "storage",
+    "database",
+    "nest",
+    "dotpath"
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Database",
+    "Framework :: AsyncIO"
+]
+
+
+[project.urls]
+Homepage = "https://github.com/MrBaconHat/nestio"
+Repository = "https://github.com/MrBaconHat/nestio"
+Issues = "https://github.com/MrBaconHat/nestio/issues"
+
+
+[tool.setuptools]
+packages = ["nestio"]
