@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: nestio
+Version: 0.1.0
+Summary: Async-first nested JSON/TOML storage with dot-path access and atomic writes
+Author: MrBaconHat
+License: MIT
+Project-URL: Homepage, https://github.com/MrBaconHat/nestio
+Project-URL: Repository, https://github.com/MrBaconHat/nestio
+Project-URL: Issues, https://github.com/MrBaconHat/nestio/issues
+Keywords: async,json,storage,database,nest,dotpath
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Database
+Classifier: Framework :: AsyncIO
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: aiofiles>=23.0.0
+Dynamic: license-file
