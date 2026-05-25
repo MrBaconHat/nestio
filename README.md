@@ -2,7 +2,7 @@
 
 **Async-first nested storage with dot-path access and atomic writes.**
 
-nestio lets you read and write deeply nested data files using simple dot-path keys — no manual file handling, no race conditions, no boilerplate. Currently supports **JSON** and **TOML**, with more formats on the way.
+nestio lets you read and write deeply nested data files using simple dot-path keys — no manual file handling, no race conditions, no boilerplate. Supports multiple file formats, with more on the way.
 
 ---
 
@@ -11,6 +11,17 @@ nestio lets you read and write deeply nested data files using simple dot-path ke
 ```bash
 pip install nestio
 ```
+
+---
+
+## Supported Formats
+
+| Format | Class  | File ext | Best for |
+|--------|--------|----------|----------|
+| JSON   | `Json` | `.json`  | General purpose, APIs, configs |
+| TOML   | `Toml` | `.toml`  | Configuration files |
+| TOON   | `Toon` | `.toon`  | LLM input — compact, token-efficient |
+| YAML   | `Yaml` | `.yaml`  | *(coming soon)* |
 
 ---
 
@@ -50,29 +61,66 @@ async def main():
 
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
-    await cfg.set("database.name", "mydb")
 
     host = await cfg.get("server.host") # "localhost"
 
     await cfg.update("server", {"port": 9090, "debug": True})
-    await cfg.delete("database.name")
+    await cfg.delete("server.host")
 
 asyncio.run(main())
+```
+
+### TOON
+
+[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact, human-readable format designed for LLM input. It uses YAML-style indentation for nested objects and CSV-style rows for uniform arrays — achieving up to 40% fewer tokens than JSON while maintaining full round-trip fidelity.
+
+```python
+import asyncio
+from nestio import Toon
+
+async def main():
+    store = Toon("data/context.toon")
+
+    await store.set("context.task", "Our favorite hikes")
+    await store.set("context.location", "Boulder")
+    await store.set("friends", ["ana", "luis", "sam"])
+
+    task = await store.get("context.task") # "Our favorite hikes"
+
+    await store.append("logs", "started")
+    await store.update("context", {"season": "spring_2025"})
+    await store.delete("context.location")
+
+asyncio.run(main())
+```
+
+A `.toon` file produced by nestio looks like this:
+
+```
+context:
+  task: Our favorite hikes
+  season: spring_2025
+friends[3]: ana,luis,sam
+hikes[3]{id,name,distanceKm,wasSunny}:
+  1,Blue Lake Trail,7.5,true
+  2,Ridge Overlook,9.2,false
+  3,Wildflower Loop,5.1,true
 ```
 
 ---
 
 ## API
 
-All methods are `async` and must be awaited. Both `Json` and `Toml` share the same interface.
+All methods are `async` and must be awaited. `Json`, `Toml`, and `Toon` all share the same interface.
 
-### `Json(path)` / `Toml(path)`
+### `Json(path)` / `Toml(path)` / `Toon(path)`
 
 Creates a storage instance pointing to a file. The file and any parent directories are created automatically on first write.
 
 ```python
-db  = Json("path/to/file.json")
-cfg = Toml("path/to/file.toml")
+db    = Json("path/to/file.json")
+cfg   = Toml("path/to/file.toml")
+store = Toon("path/to/file.toon")
 ```
 
 ---
@@ -135,22 +183,12 @@ await db.update("config", {"retries": 3, "timeout": 30})
 
 ---
 
-## Supported formats
-
-| Format | Class  | Status |
-|--------|--------|--------|
-| JSON   | `Json` | ✅ Available |
-| TOML   | `Toml` | ✅ Available |
-| YAML   | `Yaml` | 🔜 Coming soon |
-
----
-
 ## Requirements
 
 - Python 3.9+
 - [`aiofiles`](https://github.com/Tinche/aiofiles)
-- [`tomli`](https://github.com/hukkin/tomli) *(Python < 3.11 only)*
-- [`tomli-w`](https://github.com/hukkin/tomli-w)
+- [`tomli`](https://github.com/hukkin/tomli) *(Python < 3.11 only, for TOML support)*
+- [`tomli-w`](https://github.com/hukkin/tomli-w) *(for TOML support)*
 
 ---
 

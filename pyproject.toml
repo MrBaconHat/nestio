@@ -25,10 +25,12 @@ keywords = [
     "async",
     "json",
     "toml",
+    "toon",
     "storage",
     "database",
     "nest",
-    "dotpath"
+    "dotpath",
+    "llm"
 ]
 
 classifiers = [
