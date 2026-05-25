@@ -9,7 +9,7 @@ version = "0.1.0"
 description = "Async-first nested JSON/TOML storage with dot-path access and atomic writes"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
+license = "MIT"
 
 authors = [
     {name = "MrBaconHat"}
