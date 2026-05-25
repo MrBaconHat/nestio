@@ -2,7 +2,7 @@ import toons
 from .base import BaseStorage
 
 
-class Toon(BaseStorage):
+class TOON(BaseStorage):
     def __init__(self, path: str):
         super().__init__(path)
 

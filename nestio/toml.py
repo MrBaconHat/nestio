@@ -7,7 +7,7 @@ import tomli_w
 from .base import BaseStorage
 
 
-class Toml(BaseStorage):
+class TOML(BaseStorage):
     def __init__(self, path: str):
         super().__init__(path)
 

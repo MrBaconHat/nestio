@@ -2,7 +2,7 @@ import json
 from .base import BaseStorage
 
 
-class Json(BaseStorage):
+class JSON(BaseStorage):
     def __init__(self, path: str):
         super().__init__(path)
         
