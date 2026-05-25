@@ -19,6 +19,7 @@ License-File: LICENSE
 Requires-Dist: aiofiles>=23.0.0
 Requires-Dist: tomli>=2.0.0; python_version < "3.11"
 Requires-Dist: tomli-w>=1.0.0
+Requires-Dist: toons>=0.7.0
 Dynamic: license-file
 
 # nestio
