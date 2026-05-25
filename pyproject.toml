@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nestio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Async-first nested JSON/TOML storage with dot-path access and atomic writes"
 readme = "README.md"
 requires-python = ">=3.9"
