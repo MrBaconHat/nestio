@@ -33,18 +33,15 @@ async def main():
     await toon.set("friends", ["ana", "luis", "sam"])
     print("TOON  ->", await toon.get("context"))
 
-    print("-" * 30)
-    print("All formats working!")
-
     # SQL
     from nestio.sql import SQL, Query
     sql = SQL("demo_data/demo.db")
-    sql.conn.execute("CREATE TABLE IF NOT EXISTS users (name TEXT, age INTEGER)")
-    sql.conn.execute("DELETE FROM users")
-    sql.conn.executemany("INSERT INTO users VALUES (?, ?)", [("Alice", 30), ("Bob", 22), ("Carol", 27)])
-    sql.conn.commit()
-    result = await sql.execute(Query("users").select("name", "age").where("age", ">", 25).limit(10))
-    print("SQL   ->", result)
+    await sql.execute(Query("users").select("name", "age").where("age", ">", 25).limit(10))
+    print("SQL   ->", await sql.execute(Query("users").select("name", "age").where("age", ">", 25).limit(10)))
+
+    
+    print("-" * 30)
+    print("All formats working!")
 
 
 asyncio.run(main())
