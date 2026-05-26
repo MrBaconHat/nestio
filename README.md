@@ -1,8 +1,8 @@
 # nestio
 
-**Async-first nested storage with dot-path access and atomic writes.**
+**Async-first storage for Python — file formats and SQL, unified under one simple interface.**
 
-nestio lets you read and write deeply nested data files using simple dot-path keys — no manual file handling, no race conditions, no boilerplate. Supports multiple file formats, with more on the way.
+nestio gives you dot-path access to nested file storage (JSON, TOML, YAML, TOON) and a chainable query builder for SQLite — all async, all atomic, no boilerplate.
 
 ---
 
@@ -14,7 +14,9 @@ pip install nestio
 
 ---
 
-## Supported Formats
+## What's inside
+
+### File storage — `nestio.files`
 
 | Format | Class  | File ext | Best for |
 |--------|--------|----------|----------|
@@ -22,6 +24,13 @@ pip install nestio
 | TOML   | `TOML` | `.toml`  | Configuration files |
 | YAML   | `YAML` | `.yaml`  | Human-friendly configs |
 | TOON   | `TOON` | `.toon`  | LLM input — compact, token-efficient |
+
+### SQL storage — `nestio.sql`
+
+| Class   | Description |
+|---------|-------------|
+| `SQL`   | SQLite connection with async `execute()` |
+| `Query` | Chainable query builder |
 
 ---
 
@@ -31,7 +40,7 @@ pip install nestio
 
 ```python
 import asyncio
-from nestio import JSON
+from nestio.files import JSON
 
 async def main():
     db = JSON("data/config.json")
@@ -40,8 +49,8 @@ async def main():
     await db.set("user.settings.theme", "dark")
     await db.set("user.scores", [])
 
-    name = await db.get("user.name")            # "Alice"
-    theme = await db.get("user.settings.theme") # "dark"
+    name  = await db.get("user.name")            # "Alice"
+    theme = await db.get("user.settings.theme")  # "dark"
 
     await db.append("user.scores", 42)
     await db.update("user.settings", {"language": "en"})
@@ -54,7 +63,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from nestio import TOML
+from nestio.files import TOML
 
 async def main():
     cfg = TOML("data/config.toml")
@@ -62,7 +71,7 @@ async def main():
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
 
-    host = await cfg.get("server.host") # "localhost"
+    host = await cfg.get("server.host")  # "localhost"
 
     await cfg.update("server", {"port": 9090, "debug": True})
     await cfg.delete("server.host")
@@ -74,7 +83,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from nestio import YAML
+from nestio.files import YAML
 
 async def main():
     cfg = YAML("data/config.yaml")
@@ -83,7 +92,7 @@ async def main():
     await cfg.set("server.port", 8080)
     await cfg.set("tags", ["web", "api"])
 
-    host = await cfg.get("server.host") # "localhost"
+    host = await cfg.get("server.host")  # "localhost"
 
     await cfg.append("tags", "async")
     await cfg.update("server", {"timeout": 30})
@@ -98,7 +107,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from nestio import TOON
+from nestio.files import TOON
 
 async def main():
     store = TOON("data/context.toon")
@@ -107,7 +116,7 @@ async def main():
     await store.set("context.location", "Boulder")
     await store.set("friends", ["ana", "luis", "sam"])
 
-    task = await store.get("context.task") # "Our favorite hikes"
+    task = await store.get("context.task")  # "Our favorite hikes"
 
     await store.append("logs", "started")
     await store.update("context", {"season": "spring_2025"})
@@ -129,21 +138,44 @@ hikes[3]{id,name,distanceKm,wasSunny}:
   3,Wildflower Loop,5.1,true
 ```
 
+### SQL
+
+```python
+import asyncio
+from nestio.sql import SQL, Query
+
+async def main():
+    db = SQL("data/app.db")
+
+    # Simple select
+    rows = await db.execute(Query("users"))
+
+    # With filters, ordering, and a limit
+    rows = await db.execute(
+        Query("users")
+            .select("name", "age")
+            .where("age", ">", 25)
+            .order_by("age", "DESC")
+            .limit(10)
+    )
+
+    for row in rows:
+        print(row)
+
+asyncio.run(main())
+```
+
 ---
 
-## API
+## File storage API
 
 All methods are `async` and must be awaited. `JSON`, `TOML`, `YAML`, and `TOON` all share the same interface.
 
-### `JSON(path)` / `TOML(path)` / `YAML(path)` / `TOON(path)`
-
-Creates a storage instance pointing to a file. The file and any parent directories are created automatically on first write.
+You can import from the top level or directly from the submodule — both work:
 
 ```python
-db    = JSON("path/to/file.json")
-cfg   = TOML("path/to/file.toml")
-cfg   = YAML("path/to/file.yaml")
-store = TOON("path/to/file.toon")
+from nestio import JSON          # top-level shortcut
+from nestio.files import JSON    # explicit submodule
 ```
 
 ---
@@ -156,8 +188,6 @@ Returns the value at the given dot-path, or `default` if it doesn't exist.
 value = await db.get("server.host", default="localhost")
 ```
 
----
-
 ### `set(path, value)`
 
 Sets the value at the given dot-path. Creates intermediate dicts as needed.
@@ -165,8 +195,6 @@ Sets the value at the given dot-path. Creates intermediate dicts as needed.
 ```python
 await db.set("server.port", 8080)
 ```
-
----
 
 ### `delete(path)`
 
@@ -176,8 +204,6 @@ Removes the key at the given dot-path. Does nothing if the key doesn't exist.
 await db.delete("server.port")
 ```
 
----
-
 ### `append(path, value)`
 
 Appends a value to a list at the given dot-path. Creates the list if it doesn't exist yet.
@@ -185,8 +211,6 @@ Appends a value to a list at the given dot-path. Creates the list if it doesn't 
 ```python
 await db.append("logs", {"level": "info", "msg": "started"})
 ```
-
----
 
 ### `update(path, new_data)`
 
@@ -198,11 +222,52 @@ await db.update("config", {"retries": 3, "timeout": 30})
 
 ---
 
+## SQL API
+
+### `SQL(path)`
+
+Opens (or creates) a SQLite database at the given path.
+
+```python
+from nestio.sql import SQL
+db = SQL("data/app.db")
+```
+
+### `await db.execute(query)`
+
+Executes a `Query` and returns all matching rows as a list of tuples.
+
+```python
+rows = await db.execute(Query("users"))
+```
+
+### `Query(table)`
+
+Builds a SELECT query for the given table. All methods are chainable.
+
+```python
+Query("orders")
+    .select("id", "total")
+    .where("status", "=", "shipped")
+    .order_by("total", "DESC")
+    .limit(5)
+```
+
+| Method | Description |
+|--------|-------------|
+| `.select(*columns)` | Columns to return (default: `*`) |
+| `.where(column, operator, value)` | Add a filter condition — multiple calls are ANDed |
+| `.order_by(column, direction)` | Sort results (`"ASC"` or `"DESC"`) |
+| `.limit(n)` | Cap the number of returned rows |
+
+---
+
 ## How it works
 
 - **Dot-path access** — keys like `"a.b.c"` resolve through nested dicts automatically.
-- **Atomic writes** — every save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never left in a half-written state.
+- **Atomic writes** — every file save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never left in a half-written state.
 - **Per-key locking** — concurrent writes to the same path are serialized with `asyncio.Lock`, while independent paths can write in parallel. Locks are cleaned up automatically after a TTL.
+- **SQL query builder** — `Query` compiles to parameterized SQL, so values are always safely escaped.
 
 ---
 
@@ -214,6 +279,7 @@ await db.update("config", {"retries": 3, "timeout": 30})
 - [`tomli`](https://github.com/hukkin/tomli) *(Python < 3.11 only, for TOML support)*
 - [`tomli-w`](https://github.com/hukkin/tomli-w) *(for TOML support)*
 - [`toons`](https://toons.readthedocs.io/en/stable/) *(for TOON support)*
+- `sqlite3` *(for SQL support — built into Python, no install needed)*
 
 ---
 
