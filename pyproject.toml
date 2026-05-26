@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nestio"
 version = "0.1.1"
-description = "Async-first nested JSON/TOML storage with dot-path access and atomic writes"
+description = "Async-first nested storage with dot-path access and atomic writes — supports JSON, TOML, YAML, and TOON"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -19,13 +19,15 @@ dependencies = [
     "aiofiles>=23.0.0",
     "tomli>=2.0.0; python_version < '3.11'",
     "tomli-w>=1.0.0",
-    "toons>=0.7.0"
+    "toons>=0.7.0",
+    "pyyaml>=6.0.0"
 ]
 
 keywords = [
     "async",
     "json",
     "toml",
+    "yaml",
     "toon",
     "storage",
     "database",

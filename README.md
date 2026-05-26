@@ -18,10 +18,10 @@ pip install nestio
 
 | Format | Class  | File ext | Best for |
 |--------|--------|----------|----------|
-| JSON   | `Json` | `.json`  | General purpose, APIs, configs |
-| TOML   | `Toml` | `.toml`  | Configuration files |
-| TOON   | `Toon` | `.toon`  | LLM input — compact, token-efficient |
-| YAML   | `Yaml` | `.yaml`  | *(coming soon)* |
+| JSON   | `JSON` | `.json`  | General purpose, APIs, configs |
+| TOML   | `TOML` | `.toml`  | Configuration files |
+| YAML   | `YAML` | `.yaml`  | Human-friendly configs |
+| TOON   | `TOON` | `.toon`  | LLM input — compact, token-efficient |
 
 ---
 
@@ -31,10 +31,10 @@ pip install nestio
 
 ```python
 import asyncio
-from nestio import Json
+from nestio import JSON
 
 async def main():
-    db = Json("data/config.json")
+    db = JSON("data/config.json")
 
     await db.set("user.name", "Alice")
     await db.set("user.settings.theme", "dark")
@@ -54,10 +54,10 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from nestio import Toml
+from nestio import TOML
 
 async def main():
-    cfg = Toml("data/config.toml")
+    cfg = TOML("data/config.toml")
 
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
@@ -70,16 +70,38 @@ async def main():
 asyncio.run(main())
 ```
 
+### YAML
+
+```python
+import asyncio
+from nestio import YAML
+
+async def main():
+    cfg = YAML("data/config.yaml")
+
+    await cfg.set("server.host", "localhost")
+    await cfg.set("server.port", 8080)
+    await cfg.set("tags", ["web", "api"])
+
+    host = await cfg.get("server.host") # "localhost"
+
+    await cfg.append("tags", "async")
+    await cfg.update("server", {"timeout": 30})
+    await cfg.delete("server.port")
+
+asyncio.run(main())
+```
+
 ### TOON
 
 [TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact, human-readable format designed for LLM input. It uses YAML-style indentation for nested objects and CSV-style rows for uniform arrays — achieving up to 40% fewer tokens than JSON while maintaining full round-trip fidelity.
 
 ```python
 import asyncio
-from nestio import Toon
+from nestio import TOON
 
 async def main():
-    store = Toon("data/context.toon")
+    store = TOON("data/context.toon")
 
     await store.set("context.task", "Our favorite hikes")
     await store.set("context.location", "Boulder")
@@ -111,16 +133,17 @@ hikes[3]{id,name,distanceKm,wasSunny}:
 
 ## API
 
-All methods are `async` and must be awaited. `Json`, `Toml`, and `Toon` all share the same interface.
+All methods are `async` and must be awaited. `JSON`, `TOML`, `YAML`, and `TOON` all share the same interface.
 
-### `Json(path)` / `Toml(path)` / `Toon(path)`
+### `JSON(path)` / `TOML(path)` / `YAML(path)` / `TOON(path)`
 
 Creates a storage instance pointing to a file. The file and any parent directories are created automatically on first write.
 
 ```python
-db    = Json("path/to/file.json")
-cfg   = Toml("path/to/file.toml")
-store = Toon("path/to/file.toon")
+db    = JSON("path/to/file.json")
+cfg   = TOML("path/to/file.toml")
+cfg   = YAML("path/to/file.yaml")
+store = TOON("path/to/file.toon")
 ```
 
 ---
@@ -187,8 +210,10 @@ await db.update("config", {"retries": 3, "timeout": 30})
 
 - Python 3.9+
 - [`aiofiles`](https://github.com/Tinche/aiofiles)
+- [`pyyaml`](https://pyyaml.org/) *(for YAML support)*
 - [`tomli`](https://github.com/hukkin/tomli) *(Python < 3.11 only, for TOML support)*
 - [`tomli-w`](https://github.com/hukkin/tomli-w) *(for TOML support)*
+- [`toons`](https://toons.readthedocs.io/en/stable/) *(for TOON support)*
 
 ---
 
