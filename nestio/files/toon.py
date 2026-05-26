@@ -1,5 +1,5 @@
 import toons
-from ..base import BaseStorage
+from .base import BaseStorage
 
 
 class TOON(BaseStorage):

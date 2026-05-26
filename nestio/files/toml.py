@@ -4,7 +4,7 @@ except ImportError:
     import tomli as tomllib
 
 import tomli_w
-from ..base import BaseStorage
+from .base import BaseStorage
 
 
 class TOML(BaseStorage):

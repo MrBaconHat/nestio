@@ -1,8 +1,8 @@
 # nestio
 
-**Async-first storage for Python — file formats and SQL, unified under one simple interface.**
+**One interface, multiple file formats.**
 
-nestio gives you dot-path access to nested file storage (JSON, TOML, YAML, TOON) and a chainable query builder for SQLite — all async, all atomic, no boilerplate.
+nestio gives you a single, consistent API for reading and writing nested data — regardless of file format. Switch between JSON, TOML, YAML, TOON, or MessagePack without changing any of your logic. Just swap the class.
 
 ---
 
@@ -14,23 +14,30 @@ pip install nestio
 
 ---
 
-## What's inside
+## Supported formats
 
-### File storage — `nestio.files`
+| Format      | Class      | File ext  | Best for |
+|-------------|------------|-----------|----------|
+| JSON        | `JSON`     | `.json`   | General purpose, APIs, configs |
+| TOML        | `TOML`     | `.toml`   | Configuration files |
+| YAML        | `YAML`     | `.yaml`   | Human-friendly configs |
+| TOON        | `TOON`     | `.toon`   | LLM input — compact, token-efficient |
+| MessagePack | `MSGPACK`  | `.msgpack`| Binary, fast, compact serialization |
 
-| Format | Class  | File ext | Best for |
-|--------|--------|----------|----------|
-| JSON   | `JSON` | `.json`  | General purpose, APIs, configs |
-| TOML   | `TOML` | `.toml`  | Configuration files |
-| YAML   | `YAML` | `.yaml`  | Human-friendly configs |
-| TOON   | `TOON` | `.toon`  | LLM input — compact, token-efficient |
+---
 
-### SQL storage — `nestio.sql`
+## The idea
 
-| Class   | Description |
-|---------|-------------|
-| `SQL`   | SQLite connection with async `execute()` |
-| `Query` | Chainable query builder |
+Every class shares the exact same five methods. Your logic never changes — only the format does:
+
+```python
+# Works identically for JSON, TOML, YAML, TOON, or MSGPACK
+await storage.set("user.settings.theme", "dark")
+await storage.get("user.settings.theme")
+await storage.append("user.scores", 42)
+await storage.update("user.settings", {"language": "en"})
+await storage.delete("user.settings.theme")
+```
 
 ---
 
@@ -70,11 +77,9 @@ async def main():
 
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
+    await cfg.update("server", {"debug": True})
 
     host = await cfg.get("server.host")  # "localhost"
-
-    await cfg.update("server", {"port": 9090, "debug": True})
-    await cfg.delete("server.host")
 
 asyncio.run(main())
 ```
@@ -89,21 +94,17 @@ async def main():
     cfg = YAML("data/config.yaml")
 
     await cfg.set("server.host", "localhost")
-    await cfg.set("server.port", 8080)
     await cfg.set("tags", ["web", "api"])
-
-    host = await cfg.get("server.host")  # "localhost"
-
     await cfg.append("tags", "async")
-    await cfg.update("server", {"timeout": 30})
-    await cfg.delete("server.port")
+
+    tags = await cfg.get("tags")  # ["web", "api", "async"]
 
 asyncio.run(main())
 ```
 
 ### TOON
 
-[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact, human-readable format designed for LLM input. It uses YAML-style indentation for nested objects and CSV-style rows for uniform arrays — achieving up to 40% fewer tokens than JSON while maintaining full round-trip fidelity.
+[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact format designed for LLM input — YAML-style nesting, CSV-style rows for uniform arrays, up to 40% fewer tokens than JSON.
 
 ```python
 import asyncio
@@ -113,14 +114,10 @@ async def main():
     store = TOON("data/context.toon")
 
     await store.set("context.task", "Our favorite hikes")
-    await store.set("context.location", "Boulder")
     await store.set("friends", ["ana", "luis", "sam"])
+    await store.update("context", {"season": "spring_2025"})
 
     task = await store.get("context.task")  # "Our favorite hikes"
-
-    await store.append("logs", "started")
-    await store.update("context", {"season": "spring_2025"})
-    await store.delete("context.location")
 
 asyncio.run(main())
 ```
@@ -138,51 +135,47 @@ hikes[3]{id,name,distanceKm,wasSunny}:
   3,Wildflower Loop,5.1,true
 ```
 
-### SQL
+### MessagePack
+
+MessagePack is a binary format — smaller and faster to read/write than text-based formats, great for local caches and high-frequency storage.
 
 ```python
 import asyncio
-from nestio.sql import SQL, Query
+from nestio.files import MSGPACK
 
 async def main():
-    db = SQL("data/app.db")
+    cache = MSGPACK("data/cache.msgpack")
 
-    # Simple select
-    rows = await db.execute(Query("users"))
+    await cache.set("session.user_id", 1234)
+    await cache.set("session.token", "abc123")
+    await cache.set("session.permissions", ["read", "write"])
 
-    # With filters, ordering, and a limit
-    rows = await db.execute(
-        Query("users")
-            .select("name", "age")
-            .where("age", ">", 25)
-            .order_by("age", "DESC")
-            .limit(10)
-    )
+    user_id = await cache.get("session.user_id")  # 1234
 
-    for row in rows:
-        print(row)
+    await cache.append("session.permissions", "admin")
+    await cache.delete("session.token")
 
 asyncio.run(main())
 ```
 
 ---
 
-## File storage API
+## API
 
-All methods are `async` and must be awaited. `JSON`, `TOML`, `YAML`, and `TOON` all share the same interface.
+All five methods work the same across every format. All are `async` and must be awaited.
 
-You can import from the top level or directly from the submodule — both work:
+Import from the submodule or top level — both work:
 
 ```python
-from nestio import JSON          # top-level shortcut
-from nestio.files import JSON    # explicit submodule
+from nestio.files import JSON   # explicit
+from nestio import JSON         # shortcut
 ```
 
 ---
 
 ### `get(path, default=None)`
 
-Returns the value at the given dot-path, or `default` if it doesn't exist.
+Returns the value at the dot-path, or `default` if it doesn't exist.
 
 ```python
 value = await db.get("server.host", default="localhost")
@@ -190,7 +183,7 @@ value = await db.get("server.host", default="localhost")
 
 ### `set(path, value)`
 
-Sets the value at the given dot-path. Creates intermediate dicts as needed.
+Sets the value at the dot-path. Creates intermediate dicts as needed.
 
 ```python
 await db.set("server.port", 8080)
@@ -198,7 +191,7 @@ await db.set("server.port", 8080)
 
 ### `delete(path)`
 
-Removes the key at the given dot-path. Does nothing if the key doesn't exist.
+Removes the key at the dot-path. Does nothing if the key doesn't exist.
 
 ```python
 await db.delete("server.port")
@@ -206,7 +199,7 @@ await db.delete("server.port")
 
 ### `append(path, value)`
 
-Appends a value to a list at the given dot-path. Creates the list if it doesn't exist yet.
+Appends a value to a list at the dot-path. Creates the list if it doesn't exist yet.
 
 ```python
 await db.append("logs", {"level": "info", "msg": "started"})
@@ -214,7 +207,7 @@ await db.append("logs", {"level": "info", "msg": "started"})
 
 ### `update(path, new_data)`
 
-Deep-merges a dict into the value at the given dot-path. Nested keys are merged recursively — existing keys not in `new_data` are preserved.
+Deep-merges a dict into the value at the dot-path. Existing keys not in `new_data` are preserved.
 
 ```python
 await db.update("config", {"retries": 3, "timeout": 30})
@@ -222,52 +215,11 @@ await db.update("config", {"retries": 3, "timeout": 30})
 
 ---
 
-## SQL API
-
-### `SQL(path)`
-
-Opens (or creates) a SQLite database at the given path.
-
-```python
-from nestio.sql import SQL
-db = SQL("data/app.db")
-```
-
-### `await db.execute(query)`
-
-Executes a `Query` and returns all matching rows as a list of tuples.
-
-```python
-rows = await db.execute(Query("users"))
-```
-
-### `Query(table)`
-
-Builds a SELECT query for the given table. All methods are chainable.
-
-```python
-Query("orders")
-    .select("id", "total")
-    .where("status", "=", "shipped")
-    .order_by("total", "DESC")
-    .limit(5)
-```
-
-| Method | Description |
-|--------|-------------|
-| `.select(*columns)` | Columns to return (default: `*`) |
-| `.where(column, operator, value)` | Add a filter condition — multiple calls are ANDed |
-| `.order_by(column, direction)` | Sort results (`"ASC"` or `"DESC"`) |
-| `.limit(n)` | Cap the number of returned rows |
-
----
-
 ## How it works
 
 - **Dot-path access** — keys like `"a.b.c"` resolve through nested dicts automatically.
-- **Atomic writes** — every file save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never left in a half-written state.
-- **Per-key locking** — concurrent writes to the same path are serialized with `asyncio.Lock`, while independent paths can write in parallel. Locks are cleaned up automatically after a TTL.
-- **SQL query builder** — `Query` compiles to parameterized SQL, so values are always safely escaped.
+- **Atomic writes** — every save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never half-written.
+- **Per-key locking** — concurrent writes to the same path are serialized with `asyncio.Lock`, while independent paths write in parallel. Locks clean up automatically after a TTL.
 
 ---
 
@@ -275,11 +227,11 @@ Query("orders")
 
 - Python 3.9+
 - [`aiofiles`](https://github.com/Tinche/aiofiles)
-- [`pyyaml`](https://pyyaml.org/) *(for YAML support)*
-- [`tomli`](https://github.com/hukkin/tomli) *(Python < 3.11 only, for TOML support)*
-- [`tomli-w`](https://github.com/hukkin/tomli-w) *(for TOML support)*
-- [`toons`](https://toons.readthedocs.io/en/stable/) *(for TOON support)*
-- `sqlite3` *(for SQL support — built into Python, no install needed)*
+- [`pyyaml`](https://pyyaml.org/) *(YAML)*
+- [`tomli`](https://github.com/hukkin/tomli) *(TOML, Python < 3.11 only)*
+- [`tomli-w`](https://github.com/hukkin/tomli-w) *(TOML)*
+- [`toons`](https://toons.readthedocs.io/en/stable/) *(TOON)*
+- [`msgpack`](https://msgpack.org/) *(MessagePack)*
 
 ---
 

@@ -1,5 +1,5 @@
 import json
-from ..base import BaseStorage
+from .base import BaseStorage
 
 
 class JSON(BaseStorage):

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nestio"
 version = "0.2.0"
-description = "Async-first nested storage with dot-path access and atomic writes — supports JSON, TOML, YAML, and TOON"
+description = "One interface, multiple file formats — async nested storage with dot-path access and atomic writes"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -20,7 +20,8 @@ dependencies = [
     "tomli>=2.0.0; python_version < '3.11'",
     "tomli-w>=1.0.0",
     "toons>=0.7.0",
-    "pyyaml>=6.0.0"
+    "pyyaml>=6.0.0",
+    "msgpack>=1.0.0"
 ]
 
 keywords = [
@@ -29,8 +30,8 @@ keywords = [
     "toml",
     "yaml",
     "toon",
+    "msgpack",
     "storage",
-    "database",
     "nest",
     "dotpath",
     "llm"
@@ -52,4 +53,4 @@ Issues = "https://github.com/MrBaconHat/nestio/issues"
 
 
 [tool.setuptools]
-packages = ["nestio", "nestio.files", "nestio.sql"]
+packages = ["nestio", "nestio.files", "nestio.experimental", "nestio.experimental.sql"]

@@ -1,5 +1,5 @@
 import asyncio
-from nestio.files import JSON, TOML, YAML, TOON
+from nestio.files import JSON, TOML, YAML, TOON, MSGPACK
 
 
 async def main():
@@ -12,36 +12,36 @@ async def main():
     await db.set("user.tags", ["admin", "user"])
     await db.append("user.tags", "developer")
     await db.update("user", {"location": "Boulder"})
-    print("JSON  ->", await db.get("user"))
+    print("JSON    ->", await db.get("user"))
 
     # TOML
     cfg = TOML("demo_data/demo.toml")
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
     await cfg.update("server", {"debug": True})
-    print("TOML  ->", await cfg.get("server"))
+    print("TOML    ->", await cfg.get("server"))
 
     # YAML
     yml = YAML("demo_data/demo.yaml")
     await yml.set("app.name", "nestio")
-    await yml.set("app.version", "0.1.1")
-    print("YAML  ->", await yml.get("app"))
+    await yml.set("app.version", "0.2.0")
+    print("YAML    ->", await yml.get("app"))
 
     # TOON
     toon = TOON("demo_data/demo.toon")
     await toon.set("context.task", "nestio demo")
     await toon.set("friends", ["ana", "luis", "sam"])
-    print("TOON  ->", await toon.get("context"))
+    print("TOON    ->", await toon.get("context"))
 
-    # SQL
-    from nestio.sql import SQL, Query
-    sql = SQL("demo_data/demo.db")
-    await sql.execute(Query("users").select("name", "age").where("age", ">", 25).limit(10))
-    print("SQL   ->", await sql.execute(Query("users").select("name", "age").where("age", ">", 25).limit(10)))
+    # MessagePack
+    cache = MSGPACK("demo_data/demo.msgpack")
+    await cache.set("session.user_id", 1234)
+    await cache.set("session.permissions", ["read", "write"])
+    await cache.append("session.permissions", "admin")
+    print("MSGPACK ->", await cache.get("session"))
 
-    
     print("-" * 30)
-    print("All formats working!")
+    print("One interface, multiple file formats!")
 
 
 asyncio.run(main())

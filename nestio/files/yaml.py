@@ -1,5 +1,5 @@
 import yaml
-from ..base import BaseStorage
+from .base import BaseStorage
 
 
 class YAML(BaseStorage):
