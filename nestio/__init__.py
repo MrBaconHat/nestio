@@ -1,6 +1,3 @@
-from .json import JSON
-from .toml import TOML
-from .toon import TOON
-from .yaml import YAML
+from .Files import JSON, TOML, TOON, YAML
 
 __all__ = ["JSON", "TOML", "TOON", "YAML"]
