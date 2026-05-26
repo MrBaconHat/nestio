@@ -52,4 +52,4 @@ Issues = "https://github.com/MrBaconHat/nestio/issues"
 
 
 [tool.setuptools]
-packages = ["nestio", "nestio.Files"]
+packages = ["nestio", "nestio.files", "nestio.sql"]

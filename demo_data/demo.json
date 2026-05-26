@@ -1,0 +1,12 @@
+{
+    "user": {
+        "name": "Alice",
+        "age": 30,
+        "tags": [
+            "admin",
+            "user",
+            "developer"
+        ],
+        "location": "Boulder"
+    }
+}
