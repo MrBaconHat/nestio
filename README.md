@@ -1,4 +1,4 @@
-# nestio
+ # NestIO
 
 **Async local storage for Python. One interface, multiple file formats.**
 
@@ -17,9 +17,9 @@ Supported formats: **JSON • TOML • YAML • TOON • MessagePack**
 
 ---
 
-## Why nestio?
+## Why NestIO?
 
-**Without nestio:**
+**Without NestIO:**
 
 ```python
 import json
@@ -33,7 +33,7 @@ with open("config.json", "w") as f:
     json.dump(data, f, indent=4)
 ```
 
-**With nestio:**
+**With NestIO:**
 
 ```python
 from nestio.files import JSON
@@ -52,45 +52,42 @@ Same logic. Less boilerplate.
 pip install nestio
 ```
 
-![PyPI Version](https://img.shields.io/pypi/v/nestio?labelColor=1b1b1f&color=4ade80)
-![Python 3.9+](https://img.shields.io/pypi/pyversions/nestio?labelColor=1b1b1f&color=4ade80)
-![License MIT](https://img.shields.io/pypi/l/nestio?labelColor=1b1b1f&color=4ade80)
-
----
-
-## Features
-
-| Feature | Supported |
-|---------|-----------|
-| Async API | ✅ |
-| Dot-path access | ✅ |
-| Atomic writes | ✅ |
-| Automatic locking | ✅ |
-| JSON | ✅ |
-| TOML | ✅ |
-| YAML | ✅ |
-| MessagePack | ✅ |
-| TOON | ✅ |
-
 ---
 
 ## Supported formats
 
-| Format      | Class      | File ext   | Best for |
-|-------------|------------|------------|----------|
-| JSON        | `JSON`     | `.json`    | General purpose, APIs, configs |
-| TOML        | `TOML`     | `.toml`    | Configuration files |
-| YAML        | `YAML`     | `.yaml`    | Human-friendly configs |
-| TOON        | `TOON`     | `.toon`    | LLM input — compact, token-efficient |
-| MessagePack | `MSGPACK`  | `.msgpack` | Binary, fast, compact serialization |
+| Format      | Class      | File ext  | Best for |
+|-------------|------------|-----------|----------|
+| JSON        | `JSON`     | `.json`   | General purpose, APIs, configs |
+| TOML        | `TOML`     | `.toml`   | Configuration files |
+| YAML        | `YAML`     | `.yaml`   | Human-friendly configs |
+| TOON        | `TOON`     | `.toon`   | LLM input — compact, token-efficient |
+| MessagePack | `MSGPACK`  | `.msgpack`| Binary, fast, compact serialization |
+
+---
+
+## The idea
+
+Every class shares the exact same five methods. Your logic never changes — only the format does:
+
+```python
+# Works identically for JSON, TOML, YAML, TOON, or MSGPACK
+await storage.set("user.settings.theme", "dark")
+await storage.get("user.settings.theme")
+await storage.append("user.scores", 42)
+await storage.update("user.settings", {"language": "en"})
+await storage.delete("user.settings.theme")
+```
 
 ---
 
 ## Quickstart
 
+### JSON
+
 ```python
 import asyncio
-from nestio.files import JSON  # swap for TOML, YAML, TOON, or MSGPACK — API is identical
+from nestio.files import JSON
 
 async def main():
     db = JSON("data/config.json")
@@ -112,107 +109,60 @@ asyncio.run(main())
 ### TOML
 
 ```python
+import asyncio
 from nestio.files import TOML
 
-cfg = TOML("data/config.toml")
-await cfg.set("server.host", "localhost")
-await cfg.set("server.port", 8080)
-await cfg.update("server", {"debug": True})
+async def main():
+    cfg = TOML("data/config.toml")
+
+    await cfg.set("server.host", "localhost")
+    await cfg.set("server.port", 8080)
+    await cfg.update("server", {"debug": True})
+
+    host = await cfg.get("server.host")  # "localhost"
+
+asyncio.run(main())
 ```
 
 ### YAML
 
 ```python
+import asyncio
 from nestio.files import YAML
 
-cfg = YAML("data/config.yaml")
-await cfg.set("server.host", "localhost")
-await cfg.set("tags", ["web", "api"])
-await cfg.append("tags", "async")
-```
+async def main():
+    cfg = YAML("data/config.yaml")
 
-### MessagePack
+    await cfg.set("server.host", "localhost")
+    await cfg.set("tags", ["web", "api"])
+    await cfg.append("tags", "async")
 
-```python
-from nestio.files import MSGPACK
+    tags = await cfg.get("tags")  # ["web", "api", "async"]
 
-cache = MSGPACK("data/cache.msgpack")
-await cache.set("session.user_id", 1234)
-await cache.set("session.permissions", ["read", "write"])
-await cache.append("session.permissions", "admin")
+asyncio.run(main())
 ```
 
 ### TOON
 
+[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact format designed for LLM input — YAML-style nesting, CSV-style rows for uniform arrays, up to 40% fewer tokens than JSON.
+
 ```python
+import asyncio
 from nestio.files import TOON
 
-store = TOON("data/context.toon")
-await store.set("context.task", "Our favorite hikes")
-await store.set("friends", ["ana", "luis", "sam"])
-await store.update("context", {"season": "spring_2025"})
+async def main():
+    store = TOON("data/context.toon")
+
+    await store.set("context.task", "Our favorite hikes")
+    await store.set("friends", ["ana", "luis", "sam"])
+    await store.update("context", {"season": "spring_2025"})
+
+    task = await store.get("context.task")  # "Our favorite hikes"
+
+asyncio.run(main())
 ```
 
----
-
-## API
-
-All five methods work the same across every format. All are `async` and must be awaited.
-
-Import from the submodule or the top level — both work:
-
-```python
-from nestio.files import JSON   # explicit
-from nestio import JSON         # shortcut
-```
-
-### `get(path, default=None)`
-Returns the value at the dot-path, or `default` if it doesn't exist.
-```python
-value = await db.get("server.host", default="localhost")
-```
-
-### `set(path, value)`
-Sets the value at the dot-path. Creates intermediate dicts as needed.
-```python
-await db.set("server.port", 8080)
-```
-
-### `delete(path)`
-Removes the key at the dot-path. Does nothing if the key doesn't exist.
-```python
-await db.delete("server.port")
-```
-
-### `append(path, value)`
-Appends a value to a list at the dot-path. Creates the list if it doesn't exist yet.
-```python
-await db.append("logs", {"level": "info", "msg": "started"})
-```
-
-### `update(path, new_data)`
-Deep-merges a dict into the value at the dot-path. Existing keys not in `new_data` are preserved.
-```python
-await db.update("config", {"retries": 3, "timeout": 30})
-```
-
----
-
-## How it works
-
-- **Dot-path access** — keys like `"a.b.c"` resolve through nested dicts automatically.
-- **Atomic writes** — every save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never half-written.
-- **Per-key locking** — concurrent writes to the same path are serialized with `asyncio.Lock`, while independent paths write in parallel. Locks clean up automatically after a TTL.
-
----
-
-## Format-specific notes
-
-### TOON
-
-[TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) is a compact, human-readable format designed for LLM input. It combines YAML-style indentation for nested objects with CSV-style rows for uniform arrays — achieving up to 40% fewer tokens than JSON while maintaining full round-trip fidelity.
-
-A `.toon` file produced by nestio looks like this:
+A `.toon` file produced by NestIO looks like this:
 
 ```
 context:
@@ -227,36 +177,89 @@ hikes[3]{id,name,distanceKm,wasSunny}:
 
 ### MessagePack
 
-MessagePack is a binary format — files are not human-readable, but they're smaller and faster to parse than any text-based format. Best for local caches and high-frequency storage where you don't need to inspect files manually.
+MessagePack is a binary format — smaller and faster to read/write than text-based formats, great for local caches and high-frequency storage.
+
+```python
+import asyncio
+from nestio.files import MSGPACK
+
+async def main():
+    cache = MSGPACK("data/cache.msgpack")
+
+    await cache.set("session.user_id", 1234)
+    await cache.set("session.token", "abc123")
+    await cache.set("session.permissions", ["read", "write"])
+
+    user_id = await cache.get("session.user_id")  # 1234
+
+    await cache.append("session.permissions", "admin")
+    await cache.delete("session.token")
+
+asyncio.run(main())
+```
 
 ---
 
-## Roadmap
+## API
 
-- [x] JSON support
-- [x] TOML support
-- [x] YAML support
-- [x] MessagePack support
-- [x] TOON support
-- [x] Atomic writes
-- [x] Async locking
-- [ ] Benchmarks
-- [ ] Automatic format detection
-- [ ] More examples
+All five methods work the same across every format. All are `async` and must be awaited.
+
+Import from the submodule or top level — both work:
+
+```python
+from nestio.files import JSON   # explicit
+from nestio import JSON         # shortcut
+```
 
 ---
 
-## Why I built nestio
+### `get(path, default=None)`
 
-I found myself repeatedly writing the same file handling code in async projects:
+Returns the value at the dot-path, or `default` if it doesn't exist.
 
-- Load a file
-- Navigate nested dictionaries
-- Modify values
-- Save safely
-- Handle concurrent writes
+```python
+value = await db.get("server.host", default="localhost")
+```
 
-nestio was created to remove that boilerplate and provide a consistent interface across multiple storage formats.
+### `set(path, value)`
+
+Sets the value at the dot-path. Creates intermediate dicts as needed.
+
+```python
+await db.set("server.port", 8080)
+```
+
+### `delete(path)`
+
+Removes the key at the dot-path. Does nothing if the key doesn't exist.
+
+```python
+await db.delete("server.port")
+```
+
+### `append(path, value)`
+
+Appends a value to a list at the dot-path. Creates the list if it doesn't exist yet.
+
+```python
+await db.append("logs", {"level": "info", "msg": "started"})
+```
+
+### `update(path, new_data)`
+
+Deep-merges a dict into the value at the dot-path. Existing keys not in `new_data` are preserved.
+
+```python
+await db.update("config", {"retries": 3, "timeout": 30})
+```
+
+---
+
+## How it works
+
+- **Dot-path access** — keys like `"a.b.c"` resolve through nested dicts automatically.
+- **Atomic writes** — every save writes to a temp file first, then uses `os.replace()` to swap it in. Your file is never half-written.
+- **Per-key locking** — concurrent writes to the same path are serialized with `asyncio.Lock`, while independent paths write in parallel. Locks clean up automatically after a TTL.
 
 ---
 
