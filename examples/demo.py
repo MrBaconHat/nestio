@@ -6,7 +6,7 @@ async def main():
     print("nestio demo\n" + "-" * 30)
 
     # JSON
-    db = JSON("demo_data/demo.json")
+    db = JSON("examples/demo.json")
     await db.set("user.name", "Alice")
     await db.set("user.age", 30)
     await db.set("user.tags", ["admin", "user"])
@@ -15,26 +15,26 @@ async def main():
     print("JSON    ->", await db.get("user"))
 
     # TOML
-    cfg = TOML("demo_data/demo.toml")
+    cfg = TOML("examples/demo.toml")
     await cfg.set("server.host", "localhost")
     await cfg.set("server.port", 8080)
     await cfg.update("server", {"debug": True})
     print("TOML    ->", await cfg.get("server"))
 
     # YAML
-    yml = YAML("demo_data/demo.yaml")
+    yml = YAML("examples/demo.yaml")
     await yml.set("app.name", "nestio")
     await yml.set("app.version", "0.2.0")
     print("YAML    ->", await yml.get("app"))
 
     # TOON
-    toon = TOON("demo_data/demo.toon")
+    toon = TOON("examples/demo.toon")
     await toon.set("context.task", "nestio demo")
     await toon.set("friends", ["ana", "luis", "sam"])
     print("TOON    ->", await toon.get("context"))
 
     # MessagePack
-    cache = MSGPACK("demo_data/demo.msgpack")
+    cache = MSGPACK("examples/demo.msgpack")
     await cache.set("session.user_id", 1234)
     await cache.set("session.permissions", ["read", "write"])
     await cache.append("session.permissions", "admin")
@@ -45,7 +45,7 @@ async def main():
 
 
     # Testing the context manager
-    async with JSON("demo_data/demo.json") as db:
+    async with JSON("examples/demo.json") as db:
         await db.set("user.name", "Alice")
         await db.set("user.age", 30)
         await db.set("user.tags", ["admin", "user"])
