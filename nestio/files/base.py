@@ -13,6 +13,10 @@ class BaseStorage:
 
         self._lock_manager = LockManager()
 
+    # Support for context manager
+    async def __aenter__(self): return self
+    async def __aexit__(self, exc_type, exc_val, exc_tb): ...
+
     # --- format layer ---
     def _serialize(self, data): ...
     def _deserialize(self, text): ...
@@ -66,8 +70,16 @@ class BaseStorage:
                 self._deep_merge(original[k], v)
             else:
                 original[k] = v
+
     
-    # ==== Functions ====
+    # ============================ #
+    #         Basic CRUD           #
+    # ---------------------------- #
+    #  - get                       #
+    #  - set                       #
+    #  - delete                    #
+    #  - update                    #
+    # ============================ #
     async def get(self, path, default=None):
         data = await self._load()
 
@@ -96,6 +108,33 @@ class BaseStorage:
                 del parent[key]
                 await self._save(data)
 
+    async def update(self, path, new_data: dict):
+        async with await self._lock_manager.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path, create=True)
+
+            if key not in parent:
+                parent[key] = {}
+
+            if not isinstance(parent[key], dict):
+                raise TypeError("Target is not a dict")
+
+            self._deep_merge(parent[key], new_data)
+
+            await self._save(data)
+            
+
+    # ============================ #
+    #       List Management        #
+    # ---------------------------- #
+    #  - append                    #
+    #  - extend                    #
+    #  - remove                    #
+    #  - pop                       #
+    #  - clear                     #
+    # ============================ #
+
     async def append(self, path, value):
         async with await self._lock_manager.get(path):
             data = await self._load()
@@ -112,18 +151,72 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def update(self, path, new_data: dict):
+    async def extend(self, path, *values):
         async with await self._lock_manager.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
             if key not in parent:
-                parent[key] = {}
+                parent[key] = []
 
-            if not isinstance(parent[key], dict):
-                raise TypeError("Target is not a dict")
+            if not isinstance(parent[key], list):
+                raise TypeError("Target is not a list")
 
-            self._deep_merge(parent[key], new_data)
+            parent[key].extend(values)
 
             await self._save(data)
+
+    async def remove(self, path, value):
+        async with await self._lock_manager.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path)
+
+            if key not in parent:
+                raise KeyError(path)
+
+            if not isinstance(parent[key], list):
+                raise TypeError(f"Target is not a list: {path}")
+
+            parent[key].remove(value)
+
+            await self._save(data)
+
+    async def pop(self, path, index=-1):
+        async with await self._lock_manager.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path)
+
+            if key not in parent:
+                raise KeyError(path)
+
+            if not isinstance(parent[key], list):
+                raise TypeError(f"Target is not a list: {path}")
+
+            value = parent[key].pop(index)
+
+            await self._save(data)
+
+            return value
+
+    async def clear(self, path):
+        async with await self._lock_manager.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path)
+
+            if key not in parent:
+                raise KeyError(path)
+
+            if isinstance(parent[key], dict):
+                parent[key].clear()
+                await self._save(data)
+
+            elif isinstance(parent[key], list):
+                parent[key] = []
+                await self._save(data)
+
+            else:
+                raise TypeError(f"Target is not a dict or list: {path}")
