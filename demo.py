@@ -44,4 +44,15 @@ async def main():
     print("One interface, multiple file formats!")
 
 
+    # Testing the context manager
+    async with JSON("demo_data/demo.json") as db:
+        await db.set("user.name", "Alice")
+        await db.set("user.age", 30)
+        await db.set("user.tags", ["admin", "user"])
+        await db.extend("user.tags", "developer", "user", "djfjrjdjfj")
+        await db.update("user", {"location": "Boulder"})
+
+        print("JSON    ->", await db.get("user"))
+
+
 asyncio.run(main())
