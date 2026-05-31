@@ -38,7 +38,9 @@ async def main():
     await cache.set("session.user_id", 1234)
     await cache.set("session.permissions", ["read", "write"])
     await cache.append("session.permissions", "admin")
+    await cache.update("session", {"last_active": "2023-10-01"})
     print("MSGPACK ->", await cache.get("session"))
+    print("MSGPACK: LAST ACTIVE:", await cache.get("session.last_active"))
 
     print("-" * 30)
     print("One interface, multiple file formats!")
@@ -49,7 +51,7 @@ async def main():
         await db.set("user.name", "Alice")
         await db.set("user.age", 30)
         await db.set("user.tags", ["admin", "user"])
-        await db.extend("user.tags", "developer", "user", "djfjrjdjfj")
+        await db.extend("user.tags", ["developer", "user", "djfjrjdjfj"])
         await db.update("user", {"location": "Boulder"})
 
         print("JSON    ->", await db.get("user"))
