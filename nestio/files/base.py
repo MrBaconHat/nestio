@@ -3,12 +3,15 @@ import tempfile
 import os
 from pathlib import Path
 
+from typing import Any
+from abc import ABC, abstractmethod
+
 from .lock import LockManager
 
 _LOCK_MANAGER = LockManager()
 
 
-class BaseStorage:
+class BaseStorage(ABC):
     def __init__(self, path: str):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -18,7 +21,10 @@ class BaseStorage:
     async def __aexit__(self, exc_type, exc_val, exc_tb): ...
 
     # --- format layer ---
+    @abstractmethod
     def _serialize(self, data): ...
+
+    @abstractmethod
     def _deserialize(self, text): ...
 
     # --- IO ---
@@ -80,7 +86,7 @@ class BaseStorage:
     #  - delete                    #
     #  - update                    #
     # ============================ #
-    async def get(self, path, default=None):
+    async def get(self, path: str, default: Any = None) -> Any:
         data = await self._load()
 
         try:
@@ -89,7 +95,7 @@ class BaseStorage:
         except Exception:
             return default
 
-    async def set(self, path, value):
+    async def set(self, path: str, value: Any) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -98,7 +104,7 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def delete(self, path):
+    async def delete(self, path: str) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -108,7 +114,7 @@ class BaseStorage:
                 del parent[key]
                 await self._save(data)
 
-    async def update(self, path, new_data: dict):
+    async def update(self, path: str, new_data: dict[str, Any]) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -124,7 +130,7 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def exists(self, path):
+    async def exists(self, path: str) -> bool:
         sentinel = object()
         return await self.get(path, sentinel) is not sentinel
 
@@ -138,7 +144,7 @@ class BaseStorage:
     #  - clear                     #
     # ============================ #
 
-    async def append(self, path, value):
+    async def append(self, path: str, value: Any) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -154,7 +160,7 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def extend(self, path, values):
+    async def extend(self, path: str, values: Any) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -170,7 +176,7 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def remove(self, path, value):
+    async def remove(self, path: str, value: Any) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -186,7 +192,7 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def pop(self, path, index=-1):
+    async def pop(self, path: str, index: int = -1) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -204,7 +210,7 @@ class BaseStorage:
 
             return value
 
-    async def clear(self, path):
+    async def clear(self, path: str) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
