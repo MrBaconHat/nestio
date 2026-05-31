@@ -1,10 +1,3 @@
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    raise ImportError("Please install python-dotenv to use this module")
-
-load_dotenv()
-
 from pathlib import Path
 import os
 
@@ -13,6 +6,16 @@ class Env:
     # Set the default.env path(its usually in the root of the project)
     def __init__(self, path: str = ".env"):
         self.path = Path(path)
+        if not self.path.exists():
+            raise FileNotFoundError(f"Env file not found: {self.path}")
+
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            raise ImportError("Please install python-dotenv to use this module")
+
+        load_dotenv(self.path)
+        
 
     def __getitem__(self, key):
         return os.getenv(key)
@@ -20,7 +23,7 @@ class Env:
     def require(self, key):
         value = os.getenv(key)
         if not value:
-            raise KeyError(f"Missing Environment variable: {key}")
+            raise KeyError(f"Missing Environment Variable: {key}")
 
         return value
 
