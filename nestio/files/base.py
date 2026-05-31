@@ -160,7 +160,7 @@ class BaseStorage(ABC):
 
             await self._save(data)
 
-    async def extend(self, path: str, values: Any) -> None:
+    async def extend(self, path: str, values: list) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
