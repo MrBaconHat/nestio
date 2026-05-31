@@ -5,13 +5,13 @@ from pathlib import Path
 
 from .lock import LockManager
 
+_LOCK_MANAGER = LockManager()
+
 
 class BaseStorage:
     def __init__(self, path: str):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._lock_manager = LockManager()
 
     # Support for context manager
     async def __aenter__(self): return self
@@ -90,7 +90,7 @@ class BaseStorage:
             return default
 
     async def set(self, path, value):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -99,7 +99,7 @@ class BaseStorage:
             await self._save(data)
 
     async def delete(self, path):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -109,7 +109,7 @@ class BaseStorage:
                 await self._save(data)
 
     async def update(self, path, new_data: dict):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -123,7 +123,10 @@ class BaseStorage:
             self._deep_merge(parent[key], new_data)
 
             await self._save(data)
-            
+
+    async def exists(self, path):
+        sentinel = object()
+        return await self.get(path, sentinel) is not sentinel
 
     # ============================ #
     #       List Management        #
@@ -136,7 +139,7 @@ class BaseStorage:
     # ============================ #
 
     async def append(self, path, value):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -151,8 +154,8 @@ class BaseStorage:
 
             await self._save(data)
 
-    async def extend(self, path, *values):
-        async with await self._lock_manager.get(path):
+    async def extend(self, path, values):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -168,7 +171,7 @@ class BaseStorage:
             await self._save(data)
 
     async def remove(self, path, value):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -184,7 +187,7 @@ class BaseStorage:
             await self._save(data)
 
     async def pop(self, path, index=-1):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -202,7 +205,7 @@ class BaseStorage:
             return value
 
     async def clear(self, path):
-        async with await self._lock_manager.get(path):
+        async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
