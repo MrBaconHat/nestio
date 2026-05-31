@@ -21,7 +21,8 @@ dependencies = [
     "tomli-w>=1.0.0",
     "toons>=0.7.0",
     "pyyaml>=6.0.0",
-    "msgpack>=1.0.0"
+    "msgpack>=1.0.0",
+    "python-dotenv>=1.0.0"
 ]
 
 keywords = [
@@ -53,4 +54,4 @@ Issues = "https://github.com/MrBaconHat/nestio/issues"
 
 
 [tool.setuptools]
-packages = ["nestio", "nestio.files", "nestio.experimental", "nestio.experimental.sql"]
+packages = ["nestio", "nestio.files", "nestio.env", "nestio.experimental", "nestio.experimental.sql"]
