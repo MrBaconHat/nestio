@@ -104,6 +104,12 @@ class BaseStorage(ABC):
 
             await self._save(data)
 
+    async def set_default(self, path: str, value: Any) -> Any:
+        if not await self.exists(path):
+            await self.set(path, value)
+            return value
+        return await self.get(path)
+
     async def delete(self, path: str) -> None:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
