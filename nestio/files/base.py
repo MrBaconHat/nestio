@@ -134,6 +134,18 @@ class BaseStorage(ABC):
         sentinel = object()
         return await self.get(path, sentinel) is not sentinel
 
+    async def increment(self, path: str, amount: int = 1) -> int:
+        async with await _LOCK_MANAGER.get(path):
+            data = await self._load()
+            parent, key = self._resolve_parent(data, path, create=True)
+            if isinstance(parent.get(key), (int, float)):
+                parent[key] = parent.get(key, 0) + amount
+                await self._save(data)
+                return parent[key]
+                
+            else:
+                raise TypeError(f"Target is not a number: {path}")
+
     # ============================ #
     #       List Management        #
     # ---------------------------- #
