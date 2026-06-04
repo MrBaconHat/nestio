@@ -78,6 +78,9 @@ class BaseStorage(ABC):
             else:
                 original[k] = v
 
+    @property
+    async def __lock(self):
+        return await _LOCK_MANAGER.get(str(self.path))
     
     # ============================ #
     #         Basic CRUD           #
@@ -97,7 +100,7 @@ class BaseStorage(ABC):
             return default
 
     async def set(self, path: str, value: Any) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -107,7 +110,7 @@ class BaseStorage(ABC):
             return parent[key]
         
     async def setdefault(self, path: str, value: Any) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -123,7 +126,7 @@ class BaseStorage(ABC):
         
 
     async def delete(self, path: str) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -139,7 +142,7 @@ class BaseStorage(ABC):
                 return value
 
     async def update(self, path: str, new_data: dict[str, Any], strict_keys: bool = False) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -163,7 +166,7 @@ class BaseStorage(ABC):
         return await self.get(path, sentinel) is not sentinel
 
     async def increment(self, path: str, amount: int = 1) -> int:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -187,7 +190,7 @@ class BaseStorage(ABC):
     # ============================ #
 
     async def append(self, path: str, value: Any) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -204,7 +207,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def extend(self, path: str, values: Iterable[Any]) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -221,7 +224,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def remove(self, path: str, value: Any) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -238,7 +241,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def pop(self, path: str, index: int = -1) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -255,7 +258,7 @@ class BaseStorage(ABC):
             return value
 
     async def clear(self, path: str) -> Any:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -283,7 +286,7 @@ class BaseStorage(ABC):
     # Boolean Managers
     # ============================
     async def toggle(self, path: str) -> bool:
-        async with await _LOCK_MANAGER.get(path):
+        async with await self.__lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -299,3 +302,20 @@ class BaseStorage(ABC):
             await self._save(data)
 
             return parent[key]
+
+    # ========================
+    # Multiples
+    # ========================
+    async def get_many(self, *paths: str) -> tuple[Any, ...]:
+        async with await self.__lock:
+            data = await self._load()
+            result = []
+
+            for path in paths:
+                try:
+                    parent, key = self._resolve_parent(data, path)
+                    result.append(parent.get(key))
+                except Exception:
+                   result.append(None)
+
+            return tuple(result)
