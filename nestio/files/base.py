@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from typing import Any
+from collections.abc import Iterable
 from abc import ABC, abstractmethod
 
 from .lock import LockManager
@@ -95,7 +96,7 @@ class BaseStorage(ABC):
         except Exception:
             return default
 
-    async def set(self, path: str, value: Any) -> None:
+    async def set(self, path: str, value: Any) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -103,30 +104,50 @@ class BaseStorage(ABC):
             parent[key] = value
 
             await self._save(data)
-
-    async def set_default(self, path: str, value: Any) -> Any:
-        if not await self.exists(path):
-            await self.set(path, value)
-            return value
-        return await self.get(path)
-
-    async def delete(self, path: str) -> None:
-        async with await _LOCK_MANAGER.get(path):
-            data = await self._load()
-
-            parent, key = self._resolve_parent(data, path)
-
-            if key in parent:
-                del parent[key]
-                await self._save(data)
-
-    async def update(self, path: str, new_data: dict[str, Any]) -> None:
+            return parent[key]
+        
+    async def setdefault(self, path: str, value: Any) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
             if key not in parent:
+                parent[key] = value
+                await self._save(data)
+                
+            return parent[key]
+
+    # Aliases
+    async def set_default(self, path: str, value: Any) -> Any: return await self.setdefault(path, value)
+        
+
+    async def delete(self, path: str) -> Any:
+        async with await _LOCK_MANAGER.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path)
+            
+            if key not in parent:
+                raise KeyError(f"Key not found: {path}")
+
+            if key in parent:
+                value = parent[key]
+                del parent[key]
+                await self._save(data)
+
+                return value
+
+    async def update(self, path: str, new_data: dict[str, Any], strict_keys: bool = False) -> Any:
+        async with await _LOCK_MANAGER.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path, create=True)
+
+            if key not in parent:
+                if strict_keys:
+                    raise KeyError(f"Key not found: {path}")
+                    
                 parent[key] = {}
 
             if not isinstance(parent[key], dict):
@@ -135,6 +156,7 @@ class BaseStorage(ABC):
             self._deep_merge(parent[key], new_data)
 
             await self._save(data)
+            return parent[key]
 
     async def exists(self, path: str) -> bool:
         sentinel = object()
@@ -144,8 +166,10 @@ class BaseStorage(ABC):
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
             parent, key = self._resolve_parent(data, path, create=True)
-            if isinstance(parent.get(key), (int, float)):
-                parent[key] = parent.get(key, 0) + amount
+
+            value = parent.get(key, 0)
+            if isinstance(value, (int, float)):
+                parent[key] = value + amount
                 await self._save(data)
                 return parent[key]
                 
@@ -162,7 +186,7 @@ class BaseStorage(ABC):
     #  - clear                     #
     # ============================ #
 
-    async def append(self, path: str, value: Any) -> None:
+    async def append(self, path: str, value: Any) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -177,8 +201,9 @@ class BaseStorage(ABC):
             parent[key].append(value)
 
             await self._save(data)
+            return parent[key]
 
-    async def extend(self, path: str, values: list) -> None:
+    async def extend(self, path: str, values: Iterable[Any]) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -193,15 +218,16 @@ class BaseStorage(ABC):
             parent[key].extend(values)
 
             await self._save(data)
+            return parent[key]
 
-    async def remove(self, path: str, value: Any) -> None:
+    async def remove(self, path: str, value: Any) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
 
             if key not in parent:
-                raise KeyError(path)
+                raise KeyError(f"Key not found: {path}")
 
             if not isinstance(parent[key], list):
                 raise TypeError(f"Target is not a list: {path}")
@@ -209,6 +235,7 @@ class BaseStorage(ABC):
             parent[key].remove(value)
 
             await self._save(data)
+            return parent[key]
 
     async def pop(self, path: str, index: int = -1) -> Any:
         async with await _LOCK_MANAGER.get(path):
@@ -225,10 +252,9 @@ class BaseStorage(ABC):
             value = parent[key].pop(index)
 
             await self._save(data)
-
             return value
 
-    async def clear(self, path: str) -> None:
+    async def clear(self, path: str) -> Any:
         async with await _LOCK_MANAGER.get(path):
             data = await self._load()
 
@@ -238,12 +264,38 @@ class BaseStorage(ABC):
                 raise KeyError(path)
 
             if isinstance(parent[key], dict):
+                old = parent[key].copy()
                 parent[key].clear()
                 await self._save(data)
+                return old
 
             elif isinstance(parent[key], list):
+                old = parent[key].copy()
                 parent[key] = []
                 await self._save(data)
+                return old
 
             else:
                 raise TypeError(f"Target is not a dict or list: {path}")
+
+
+    # ============================
+    # Boolean Managers
+    # ============================
+    async def toggle(self, path: str) -> bool:
+        async with await _LOCK_MANAGER.get(path):
+            data = await self._load()
+
+            parent, key = self._resolve_parent(data, path, create=True)
+
+            if key not in parent:
+                parent[key] = False
+
+            bool_value = parent[key]
+            if not isinstance(bool_value, bool):
+                raise TypeError(f"Target is not a boolean: {path}")
+
+            parent[key] = not bool_value
+            await self._save(data)
+
+            return parent[key]
