@@ -90,8 +90,11 @@ class BaseStorage(ABC):
     #  - delete                    #
     #  - update                    #
     # ============================ #
-    async def get(self, path: str, default: Any = None) -> Any:
+    async def get(self, path: str | None = None, default: Any = None) -> Any:
         data = await self._load()
+        
+        if path is None:
+            return data
 
         try:
             parent, key = self._resolve_parent(data, path)
