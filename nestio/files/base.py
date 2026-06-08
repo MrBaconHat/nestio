@@ -7,6 +7,10 @@ from typing import Any
 from collections.abc import Iterable
 from abc import ABC, abstractmethod
 
+import time
+import asyncio
+import atexit
+
 from .lock import LockManager
 
 _LOCK_MANAGER = LockManager()
@@ -16,6 +20,11 @@ class BaseStorage(ABC):
     def __init__(self, path: str):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.__batch = Batch(self)
+        
+        self._in_batch: bool = False
+        self._batch_data: dict[str, Any] | None = None
 
     # Support for context manager
     async def __aenter__(self): return self
@@ -30,6 +39,9 @@ class BaseStorage(ABC):
 
     # --- IO ---
     async def _load(self):
+        if self._in_batch:
+            return self._batch_data
+            
         try:
             async with aiofiles.open(self.path, "r", encoding="utf-8") as f:
                 return self._deserialize(await f.read())
@@ -37,6 +49,9 @@ class BaseStorage(ABC):
             return {}
 
     async def _save(self, data):
+        if self._in_batch:
+            return
+            
         content = self._serialize(data)
 
         with tempfile.NamedTemporaryFile(
@@ -79,7 +94,7 @@ class BaseStorage(ABC):
                 original[k] = v
 
     @property
-    async def __lock(self):
+    async def _lock(self):
         return await _LOCK_MANAGER.get(str(self.path))
     
     # ============================ #
@@ -99,11 +114,11 @@ class BaseStorage(ABC):
         try:
             parent, key = self._resolve_parent(data, path)
             return parent.get(key, default)
-        except Exception:
+        except (KeyError, TypeError):
             return default
 
     async def set(self, path: str, value: Any) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -113,7 +128,7 @@ class BaseStorage(ABC):
             return parent[key]
         
     async def setdefault(self, path: str, value: Any) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -129,7 +144,7 @@ class BaseStorage(ABC):
         
 
     async def delete(self, path: str) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -145,7 +160,7 @@ class BaseStorage(ABC):
                 return value
 
     async def update(self, path: str, new_data: dict[str, Any], strict_keys: bool = False) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -169,7 +184,7 @@ class BaseStorage(ABC):
         return await self.get(path, sentinel) is not sentinel
 
     async def increment(self, path: str, amount: int = 1) -> int:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -193,7 +208,7 @@ class BaseStorage(ABC):
     # ============================ #
 
     async def append(self, path: str, value: Any) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -210,7 +225,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def extend(self, path: str, values: Iterable[Any]) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -227,7 +242,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def remove(self, path: str, value: Any) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -244,7 +259,7 @@ class BaseStorage(ABC):
             return parent[key]
 
     async def pop(self, path: str, index: int = -1) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -261,7 +276,7 @@ class BaseStorage(ABC):
             return value
 
     async def clear(self, path: str) -> Any:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path)
@@ -289,7 +304,7 @@ class BaseStorage(ABC):
     # Boolean Managers
     # ============================
     async def toggle(self, path: str) -> bool:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
 
             parent, key = self._resolve_parent(data, path, create=True)
@@ -310,7 +325,7 @@ class BaseStorage(ABC):
     # Multiples
     # ========================
     async def get_many(self, *paths: str) -> tuple[Any, ...]:
-        async with await self.__lock:
+        async with await self._lock:
             data = await self._load()
             result = []
 
@@ -322,3 +337,89 @@ class BaseStorage(ABC):
                    result.append(None)
 
             return tuple(result)
+
+
+class Cache:
+    def __init__(self, storage):
+        self.__storage = storage
+
+        self._cache = {}
+        self._last_updated = time.monotonic()
+        self._dirty: bool = False
+
+        # start flush loop
+        self._task = asyncio.create_task(self._flush_loop())
+
+        # register sync exit handler
+        atexit.register(self._sync_exit)
+
+    def __getitem__(self, key):
+        if key not in self._cache:
+            raise KeyError(key)
+
+        return self._cache[key]
+        
+        
+    async def _flush_loop(self):
+        try:
+            while True:
+                await asyncio.sleep(5)
+
+                if self._dirty:
+                    await self.__storage._save(self._cache)
+                    self._dirty = False
+
+        except asyncio.CancelledError:
+            # cleanup when stopping
+            pass
+
+    def _sync_exit(self):
+        try:
+            asyncio.run(self._shutdown())
+        except RuntimeError:
+        # event loop might already be closed
+            pass
+
+    async def _shutdown(self):
+        self._dirty = False
+
+        # final flush
+        if self._cache:
+            await self.__storage._save(self._cache)
+
+        # stop loop task safely
+        if hasattr(self, "_task"):
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
+
+# ==== Experimental ============================================================
+class Batch:
+    def __init__(self, storage: BaseStorage):
+        self.storage = storage
+
+    async def __aenter__(self):
+        self.lock = await self.storage._lock
+        await self.lock.acquire()
+        
+        self.data = await self.storage._load()
+
+        self.storage._in_batch = True
+        self.storage._batch_data = self.data
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self.storage._in_batch = False
+
+            if exc_type is None:
+                await self.storage._save(self.data)
+
+        finally:
+            self.storage._batch_data = None
+            self.lock.release()
