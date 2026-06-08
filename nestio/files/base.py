@@ -21,11 +21,6 @@ class BaseStorage(ABC):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.__batch = Batch(self)
-        
-        self._in_batch: bool = False
-        self._batch_data: dict[str, Any] | None = None
-
     # Support for context manager
     async def __aenter__(self): return self
     async def __aexit__(self, exc_type, exc_val, exc_tb): ...
@@ -39,9 +34,6 @@ class BaseStorage(ABC):
 
     # --- IO ---
     async def _load(self):
-        if self._in_batch:
-            return self._batch_data
-            
         try:
             async with aiofiles.open(self.path, "r", encoding="utf-8") as f:
                 return self._deserialize(await f.read())
@@ -49,9 +41,6 @@ class BaseStorage(ABC):
             return {}
 
     async def _save(self, data):
-        if self._in_batch:
-            return
-            
         content = self._serialize(data)
 
         with tempfile.NamedTemporaryFile(
@@ -197,6 +186,20 @@ class BaseStorage(ABC):
             else:
                 raise TypeError(f"Target is not a number: {path}")
 
+    async def decrement(self, path: str, amount: int = 1):
+        async with await self._lock:
+            data = await self._load()
+            parent, key = self._resolve_parent(data, path, create=True)
+
+            value = parent.get(key, 0)
+            if isinstance(value, (int, float)):
+                parent[key] = value - amount
+                await self._save(data)
+                return parent[key]
+
+            else:
+                raise TypeError(f"Target is not a number: {path}")
+
     # ============================ #
     #       List Management        #
     # ---------------------------- #
@@ -292,7 +295,7 @@ class BaseStorage(ABC):
 
             elif isinstance(parent[key], list):
                 old = parent[key].copy()
-                parent[key] = []
+                parent[key].clear()
                 await self._save(data)
                 return old
 
@@ -337,89 +340,3 @@ class BaseStorage(ABC):
                    result.append(None)
 
             return tuple(result)
-
-
-class Cache:
-    def __init__(self, storage):
-        self.__storage = storage
-
-        self._cache = {}
-        self._last_updated = time.monotonic()
-        self._dirty: bool = False
-
-        # start flush loop
-        self._task = asyncio.create_task(self._flush_loop())
-
-        # register sync exit handler
-        atexit.register(self._sync_exit)
-
-    def __getitem__(self, key):
-        if key not in self._cache:
-            raise KeyError(key)
-
-        return self._cache[key]
-        
-        
-    async def _flush_loop(self):
-        try:
-            while True:
-                await asyncio.sleep(5)
-
-                if self._dirty:
-                    await self.__storage._save(self._cache)
-                    self._dirty = False
-
-        except asyncio.CancelledError:
-            # cleanup when stopping
-            pass
-
-    def _sync_exit(self):
-        try:
-            asyncio.run(self._shutdown())
-        except RuntimeError:
-        # event loop might already be closed
-            pass
-
-    async def _shutdown(self):
-        self._dirty = False
-
-        # final flush
-        if self._cache:
-            await self.__storage._save(self._cache)
-
-        # stop loop task safely
-        if hasattr(self, "_task"):
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-
-
-
-# ==== Experimental ============================================================
-class Batch:
-    def __init__(self, storage: BaseStorage):
-        self.storage = storage
-
-    async def __aenter__(self):
-        self.lock = await self.storage._lock
-        await self.lock.acquire()
-        
-        self.data = await self.storage._load()
-
-        self.storage._in_batch = True
-        self.storage._batch_data = self.data
-
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        try:
-            self.storage._in_batch = False
-
-            if exc_type is None:
-                await self.storage._save(self.data)
-
-        finally:
-            self.storage._batch_data = None
-            self.lock.release()
