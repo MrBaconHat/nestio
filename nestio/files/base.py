@@ -11,7 +11,7 @@ import time
 import asyncio
 import atexit
 
-from .lock import LockManager
+from ..utils.lock import LockManager
 
 _LOCK_MANAGER = LockManager()
 
