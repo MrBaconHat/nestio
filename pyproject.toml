@@ -22,7 +22,8 @@ dependencies = [
     "toons>=0.7.0",
     "pyyaml>=6.0.0",
     "msgpack>=1.0.0",
-    "python-dotenv>=1.0.0"
+    "python-dotenv>=1.0.0",
+    "cachetools>=7.1.4"
 ]
 
 keywords = [
