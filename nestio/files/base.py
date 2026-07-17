@@ -1,7 +1,10 @@
 import aiofiles
 import tempfile
+
 import os
 from pathlib import Path
+
+from copy import deepcopy
 
 from typing import Any
 from collections.abc import Iterable
@@ -9,9 +12,9 @@ from abc import ABC, abstractmethod
 
 import time
 import asyncio
-import atexit
 
 from ..utils.lock import LockManager
+from ..utils.storage import StorageManager
 
 _LOCK_MANAGER = LockManager()
 
@@ -21,9 +24,11 @@ class BaseStorage(ABC):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Support for context manager
-    async def __aenter__(self): return self
-    async def __aexit__(self, exc_type, exc_val, exc_tb): ...
+        self._storage = StorageManager(
+            path=self.path,
+            serializer=self._serialize,
+            deserializer=self._deserialize
+        )
 
     # --- format layer ---
     @abstractmethod
@@ -31,30 +36,6 @@ class BaseStorage(ABC):
 
     @abstractmethod
     def _deserialize(self, text): ...
-
-    # --- IO ---
-    async def _load(self):
-        try:
-            async with aiofiles.open(self.path, "r", encoding="utf-8") as f:
-                return self._deserialize(await f.read())
-        except FileNotFoundError:
-            return {}
-
-    async def _save(self, data):
-        content = self._serialize(data)
-
-        with tempfile.NamedTemporaryFile(
-            "w",
-            dir=self.path.parent,
-            delete=False,
-            encoding="utf-8"
-        ) as tmp:
-            tmp.write(content)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temp_path = tmp.name
-
-        os.replace(temp_path, self.path)
 
     # --- helpers ---
     def _resolve_parent(self, data, path, create=False):
@@ -95,36 +76,37 @@ class BaseStorage(ABC):
     #  - update                    #
     # ============================ #
     async def get(self, path: str | None = None, default: Any = None) -> Any:
-        data = await self._load()
+        data = await self._storage.get_data()
         
         if path is None:
-            return data
+            return deepcopy(data)
 
         try:
             parent, key = self._resolve_parent(data, path)
-            return parent.get(key, default)
+            return deepcopy(parent.get(key, default))
         except (KeyError, TypeError):
             return default
 
     async def set(self, path: str, value: Any) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
             parent[key] = value
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return parent[key]
         
     async def setdefault(self, path: str, value: Any) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
             if key not in parent:
                 parent[key] = value
-                await self._save(data)
+                await self._storage.set_data(data)
                 
             return parent[key]
 
@@ -134,7 +116,7 @@ class BaseStorage(ABC):
 
     async def delete(self, path: str) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path)
             
@@ -144,13 +126,14 @@ class BaseStorage(ABC):
             if key in parent:
                 value = parent[key]
                 del parent[key]
-                await self._save(data)
+                
+                await self._storage.set_data(data)
 
                 return value
 
     async def update(self, path: str, new_data: dict[str, Any], strict_keys: bool = False) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -165,7 +148,8 @@ class BaseStorage(ABC):
 
             self._deep_merge(parent[key], new_data)
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return parent[key]
 
     async def exists(self, path: str) -> bool:
@@ -174,13 +158,14 @@ class BaseStorage(ABC):
 
     async def increment(self, path: str, amount: int = 1) -> int:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
             parent, key = self._resolve_parent(data, path, create=True)
 
             value = parent.get(key, 0)
             if isinstance(value, (int, float)):
                 parent[key] = value + amount
-                await self._save(data)
+                await self._storage.set_data(data)
+                
                 return parent[key]
                 
             else:
@@ -188,13 +173,14 @@ class BaseStorage(ABC):
 
     async def decrement(self, path: str, amount: int = 1):
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
             parent, key = self._resolve_parent(data, path, create=True)
 
             value = parent.get(key, 0)
             if isinstance(value, (int, float)):
                 parent[key] = value - amount
-                await self._save(data)
+                await self._storage.set_data(data)
+                
                 return parent[key]
 
             else:
@@ -212,7 +198,7 @@ class BaseStorage(ABC):
 
     async def append(self, path: str, value: Any) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -224,12 +210,13 @@ class BaseStorage(ABC):
 
             parent[key].append(value)
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return parent[key]
 
     async def extend(self, path: str, values: Iterable[Any]) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -241,12 +228,13 @@ class BaseStorage(ABC):
 
             parent[key].extend(values)
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return parent[key]
 
     async def remove(self, path: str, value: Any) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path)
 
@@ -258,12 +246,13 @@ class BaseStorage(ABC):
 
             parent[key].remove(value)
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return parent[key]
 
     async def pop(self, path: str, index: int = -1) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path)
 
@@ -275,28 +264,25 @@ class BaseStorage(ABC):
 
             value = parent[key].pop(index)
 
-            await self._save(data)
+            await self._storage.set_data(data)
+
             return value
 
     async def clear(self, path: str) -> Any:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path)
 
             if key not in parent:
                 raise KeyError(path)
 
-            if isinstance(parent[key], dict):
-                old = parent[key].copy()
+            if isinstance(parent[key], dict) or isinstance(parent[key], list):
+                old = parent[key]
                 parent[key].clear()
-                await self._save(data)
-                return old
 
-            elif isinstance(parent[key], list):
-                old = parent[key].copy()
-                parent[key].clear()
-                await self._save(data)
+                await self._storage.set_data(data)
+                
                 return old
 
             else:
@@ -308,7 +294,7 @@ class BaseStorage(ABC):
     # ============================
     async def toggle(self, path: str) -> bool:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
 
             parent, key = self._resolve_parent(data, path, create=True)
 
@@ -320,7 +306,7 @@ class BaseStorage(ABC):
                 raise TypeError(f"Target is not a boolean: {path}")
 
             parent[key] = not bool_value
-            await self._save(data)
+            await self._storage.set_data(data)
 
             return parent[key]
 
@@ -329,7 +315,7 @@ class BaseStorage(ABC):
     # ========================
     async def get_many(self, *paths: str) -> tuple[Any, ...]:
         async with await self._lock:
-            data = await self._load()
+            data = await self._storage.get_data()
             result = []
 
             for path in paths:
