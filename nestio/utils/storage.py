@@ -1,6 +1,9 @@
-import os
+import atexit
 import asyncio
 import aiofiles
+
+import os
+
 import tempfile
 import traceback
 
@@ -26,6 +29,28 @@ class FileState:
 
 
 FILE_STORAGES: dict[str, FileState] = {}
+STORAGE_MANAGERS = set()
+
+
+def sync_flush_all():
+    for manager in STORAGE_MANAGERS:
+        try:
+            manager.sync_flush()
+
+        except Exception as e:
+            traceback.print_exception(
+                type(e), e, e.__traceback__, chain=True
+            )
+        
+async def flush_all():
+    asyncio.gather(
+        *[
+            manager.flush(force=True)
+            for manager in STORAGE_MANAGERS
+        ]
+    )
+
+atexit.register(sync_flush_all)
 
 
 class StorageManager:
@@ -38,6 +63,8 @@ class StorageManager:
         self.path = path
         self.serializer = serializer
         self.deserializer = deserializer
+
+        STORAGE_MANAGERS.add(self)
 
         if str(self.path) not in FILE_STORAGES:
             FILE_STORAGES[str(self.path)] = FileState(
@@ -75,11 +102,24 @@ class StorageManager:
         os.replace(temp_path, self.path)
 
 
+    def sync_flush(self):
+        data = deepcopy(self.file.data)
+        content = self.serializer(data)
+
+        try:
+            self._atomic_save(content)
+
+        except Exception as e:
+            traceback.print_exception(
+                type(e), e, e.__traceback__, chain=True
+            )
+        
     async def flush(self, force: bool = False):
-        if not self.file.dirty and not force:
-            return
-            
         async with await self._lock:
+
+            if not self.file.dirty and not force:
+                return
+
             content = self.serializer(self.file.data)
 
             try:
