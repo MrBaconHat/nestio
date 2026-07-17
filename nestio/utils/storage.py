@@ -43,7 +43,7 @@ def sync_flush_all():
             )
         
 async def flush_all():
-    asyncio.gather(
+    await asyncio.gather(
         *[
             manager.flush(force=True)
             for manager in STORAGE_MANAGERS
@@ -66,15 +66,6 @@ class StorageManager:
 
         STORAGE_MANAGERS.add(self)
 
-        if str(self.path) not in FILE_STORAGES:
-            FILE_STORAGES[str(self.path)] = FileState(
-                data={},
-                dirty=False,
-                loaded=False,
-                last_modified=datetime.utcnow(),
-                flush_task=asyncio.create_task(self.__flush_loop())
-            )
-
         self.__lock_m = LockManager()
 
 
@@ -83,8 +74,8 @@ class StorageManager:
         return await self.__lock_m.get(f"RTS:{str(self.path)}")
 
     @property
-    def file(self) -> FileState:
-        return FILE_STORAGES[str(self.path)]
+    def file(self) -> FileState | None:
+        return FILE_STORAGES.get(str(self.path))
         
 
     def _atomic_save(self, content: str):
@@ -103,6 +94,9 @@ class StorageManager:
 
 
     def sync_flush(self):
+        if not self.file or not self.file.loaded:
+            return
+            
         data = deepcopy(self.file.data)
         content = self.serializer(data)
 
@@ -116,6 +110,7 @@ class StorageManager:
         
     async def flush(self, force: bool = False):
         async with await self._lock:
+            await self.__ensure_loaded()
 
             if not self.file.dirty and not force:
                 return
@@ -147,6 +142,15 @@ class StorageManager:
 
 
     async def __ensure_loaded(self):
+        if not self.file:
+            FILE_STORAGES[str(self.path)] = FileState(
+                data={},
+                dirty=False,
+                loaded=False,
+                last_modified=datetime.utcnow(),
+                flush_task=asyncio.create_task(self.__flush_loop())
+            )
+            
         if self.file.loaded:
             return
 
@@ -165,13 +169,16 @@ class StorageManager:
 
     async def get_data(self):
         async with await self._lock:
-            if not self.file.loaded:
+            if not self.file or not self.file.loaded:
                 await self.__ensure_loaded()
 
             return deepcopy(self.file.data)
 
     async def set_data(self, data):
         async with await self._lock:
+            if not self.file:
+                await self.__ensure_loaded()
+                
             self.file.data = deepcopy(data)
 
             self.file.last_modified = datetime.utcnow()
