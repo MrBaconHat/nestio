@@ -1,3 +1,6 @@
 nestio.egg-info/
 dist/
 .replit
+
+test.py
+test.json
