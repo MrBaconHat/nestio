@@ -326,3 +326,10 @@ class BaseStorage(ABC):
                    result.append(None)
 
             return tuple(result)
+
+    # ========================
+    # Flush
+    # ========================
+    async def flush(self):
+        async with await self._lock:
+            await self._storage.flush(force=True)
