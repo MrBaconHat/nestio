@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nestio"
-version = "0.3.2"
+version = "0.3.3"
 description = "One interface, multiple file formats. Async file storage with dotpath access."
 readme = "README.md"
 requires-python = ">=3.9"
