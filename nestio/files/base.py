@@ -79,11 +79,11 @@ class BaseStorage(ABC):
         data = await self._storage.get_data()
         
         if path is None:
-            return deepcopy(data)
+            return data
 
         try:
             parent, key = self._resolve_parent(data, path)
-            return deepcopy(parent.get(key, default))
+            return parent.get(key, default)
         except (KeyError, TypeError):
             return default
 
