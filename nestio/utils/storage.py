@@ -7,7 +7,7 @@ import os
 import tempfile
 import traceback
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 from copy import deepcopy
 
@@ -135,7 +135,7 @@ class StorageManager:
 
     async def __flush_loop(self):
         while True:
-            if datetime.utcnow() - self.file.last_modified > timedelta(seconds=3) and self.file.dirty:
+            if datetime.now(timezone.utc) - self.file.last_modified > timedelta(seconds=3) and self.file.dirty:
                 await self.flush()
 
             await asyncio.sleep(0.3)
@@ -147,7 +147,7 @@ class StorageManager:
                 data={},
                 dirty=False,
                 loaded=False,
-                last_modified=datetime.utcnow(),
+                last_modified=datetime.now(timezone.utc),
                 flush_task=asyncio.create_task(self.__flush_loop())
             )
             
@@ -159,7 +159,7 @@ class StorageManager:
                 self.file.data = self.deserializer(await f.read())
             
                 self.file.loaded = True
-                self.file.last_modified = datetime.utcnow()
+                self.file.last_modified = datetime.now(timezone.utc)
 
         except FileNotFoundError:
             self.file.data = {}
@@ -181,7 +181,7 @@ class StorageManager:
                 
             self.file.data = deepcopy(data)
 
-            self.file.last_modified = datetime.utcnow()
+            self.file.last_modified = datetime.now(timezone.utc)
             self.file.dirty = True
 
             if not self.file.loaded:
