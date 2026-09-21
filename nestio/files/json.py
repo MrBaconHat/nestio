@@ -10,4 +10,7 @@ class JSON(BaseStorage):
         return json.dumps(data, indent=4)
 
     def _deserialize(self, text):
+        if not text.strip():
+            return {}
+
         return json.loads(text)
