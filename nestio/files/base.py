@@ -76,16 +76,17 @@ class BaseStorage(ABC):
     #  - update                    #
     # ============================ #
     async def get(self, path: str | None = None, default: Any = None) -> Any:
-        data = await self._storage.get_data()
+        async with await self._lock:
+            data = await self._storage.get_data()
         
-        if path is None:
-            return data
+            if path is None:
+                return data
 
-        try:
-            parent, key = self._resolve_parent(data, path)
-            return parent.get(key, default)
-        except (KeyError, TypeError):
-            return default
+            try:
+                parent, key = self._resolve_parent(data, path)
+                return parent.get(key, default)
+            except (KeyError, TypeError):
+                return default
 
     async def set(self, path: str, value: Any) -> Any:
         async with await self._lock:
